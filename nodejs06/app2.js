@@ -1,6 +1,6 @@
 /**
  * 몽고디비 연결
- * 로그인
+ * 사용자 추가
  */
 
 var express = require('express');
@@ -68,7 +68,7 @@ function connectDB(){
 //라우터
 var router = express.Router();
 
-
+//로그인
 router.route('/process/login').post(function(req,res){
     console.log('/process/login');
 
@@ -102,11 +102,37 @@ router.route('/process/login').post(function(req,res){
     }
 })
 
+router.route('/process/addUser').post(function(req,res){
+    console.log('/process/addUser');
+
+    var paramId =  req.body.id;
+    var paramPassword = req.body.password;
+    var paramName = req.body.name;
+
+    if(database){
+        addUser(database,paramId,paramPassword,paramName,function(err,result){
+            if(err) throw err;
+
+            if(result && result.insertedCount >0){
+                console.dir(result);
+
+                res.writeHead('200',{'Content-Type':'text/html;charset=utf8'});
+                res.write('<h1>사용자 추가 성공</h1>');
+                res.write('<h1><a href="/public/loginForm_01.html">이동</a></h1>');
+                res.end();
+
+            }
+
+        })
+    }
+})
+
 app.use('/',router);
 
 //사용자 인증 함수
 var authUser = function(database,id,password,callback){
     console.log('authUser 호출됨 : ' + id + ', ' + password);
+   
     //users 컬렉션 참조
     var users = database.collection('users');
     
@@ -123,6 +149,28 @@ var authUser = function(database,id,password,callback){
             callback(null,null);
         }
     })
+}
+
+//사용자 추가
+var addUser = function(database,id,pw,name,callback){
+    console.log('addUser func');
+
+    var users = database.collection('users');
+
+    users.insertMany([{'id':id,'password':pw,'name':name}],function(err,result){
+        if(err){
+            callback(err,null);
+            return;
+        }
+
+        if(result.insertMany>0){
+            console.log("사용자 추가 완료"+result.insertedCount);
+        }else{
+            console.log("추가된 레코드 없음");
+        }
+
+        callback(null,result);
+    });
 }
 
 
