@@ -47,7 +47,6 @@ app.use(expressSession({
 }));
 
 //몽고디비 모듈
-var MongoClient = require('mongodb').MongoClient;
 
 var database;
 
@@ -59,13 +58,36 @@ function connectDB(){
     //데이터베이스 연결 정보
 	var databaseUrl = 'mongodb://localhost:27017/local';
 
-    //연결
-    MongoClient.connect(databaseUrl,function(err,db){
-        if(err) console.log('db연결에러');
+    //데이터베이스 연결
+    mongoose.Promise = global.Promise;
+    mongoose.connect(databaseUrl);
+    database = mongoose.connection;
 
-        console.log('데이터베이스에 연결되었습니다. : ' + databaseUrl);
-        database = db.db('local');  //mongodb 버전 3.0이상
+    database.on('error',console.error.bind(console,'db error'));
+    database.on('open',function(){
+        console.log('db 연결'+databaseUrl);
+
+        //스키마 정의
+        UserSchema = mongoose.Schema({
+            id:String,
+            name:String,
+            password:String
+        });
+
+        console.log("userSchema 정의");
+
+        //UserModel 정의
+        UserModel = mongoose.model("users",UserSchema);
+        console.log("모델 정의");
     });
+
+    database.on('disconnected',function(){
+        console.log('연결이 끊어졌습니다');
+        setInterval(connectDB,2000);
+    })
+
+
+   
 }
 
 
@@ -140,44 +162,39 @@ app.use('/',router);
 var authUser = function(database,id,password,callback){
     console.log('authUser 호출됨 : ' + id + ', ' + password);
    
-    //users 컬렉션 참조
-    var users = database.collection('users');
+
     
 
     //아이디와 비밀번호를 사용해 검색
-    users.find({'id':id, 'password':password}).toArray(function(err,docs){
+    UserModel.find({'id':id, 'password':password},function(err,result){
         if(err) callback(err,null);
         
-        if(docs.length >0){
+        if(result.length >0){
             console.log('아이디 %s , 비밀번호 %s 가 일치하는 사용자 찾음',id,password);
-            callback(null,docs);
+            callback(null,result);
         }else{
             console.log('일치하는 사용자 찾지 못함');
             callback(null,null);
         }
-    })
+    });
 }
 
 //사용자 추가
 var addUser = function(database,id,pw,name,callback){
     console.log('addUser func');
 
-    var users = database.collection('users');
+   
+    //UserModel 객체 생성
+    var user = new UserModel({'id':id,'password':pw,'name':name});
 
-    users.insertMany([{'id':id,'password':pw,'name':name}],function(err,result){
-        if(err){
-            callback(err,null);
-            return;
-        }
-
-        if(result.insertMany>0){
-            console.log("사용자 추가 완료"+result.insertedCount);
-        }else{
-            console.log("추가된 레코드 없음");
-        }
-
-        callback(null,result);
-    });
+        user.save(function(err){
+            if(err){
+                callback(err,null);
+                return;
+            }
+            callback(null,user);
+        })
+  
 }
 
 
